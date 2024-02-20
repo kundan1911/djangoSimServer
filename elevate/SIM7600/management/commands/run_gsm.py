@@ -2,8 +2,12 @@
 
 import serial
 import time
+import json
 from django.core.management.base import BaseCommand
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from SIM7600.coreCode import send_at_command, call_handling, send_sms
+
 
 class Command(BaseCommand):
     help = 'Run GSM service to monitor for incoming calls and handle SMS'
@@ -37,6 +41,15 @@ class Command(BaseCommand):
                     if 'OK' in response:
                         self.stdout.write(self.style.SUCCESS("Call hung up."))
                         # Wait for a moment before sending SMS (adjust as needed)
+                        channel_layer = get_channel_layer()
+                        # Send the alert message to the WebSocket consumer
+                        async_to_sync(channel_layer.group_send)(
+                            "alerts_group",  # Channel group name
+                            {
+                                "type": "send_alert",  # Method name to call in consumer
+                                "message": json.dumps({'type':"NewOwnerCall",'phone_number':caller_number})  # Message to send to consumer
+                            }
+                        )   
                         time.sleep(1)
                         # Send an SMS to the caller
                         send_sms(ser, caller_number, "Thank you for calling. I'll get back to you later.")

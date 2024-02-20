@@ -148,14 +148,18 @@ def websocketTestingview(request):
     try:
         # Send WebSocket message to frontend
        # Get the channel layer
+        data = json.loads(request.body.decode('utf-8'))
+        print(data)
+        phoneNo=data.get('phone_number')
+        mssg=data.get('message')
         channel_layer = get_channel_layer()
-
+        # print(channel_layer)
         # Send the alert message to the WebSocket consumer
         async_to_sync(channel_layer.group_send)(
-            "alert_group",  # Channel group name
+            "alerts_group",  # Channel group name
             {
                 "type": "send_alert",  # Method name to call in consumer
-                "message": "Websocket testing successful"
+                "message": json.dumps({'type':"NewOwnerCall",'phone_number':"caller_number"})  # Message to send to consumer
             }
         )
 
