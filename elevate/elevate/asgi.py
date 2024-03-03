@@ -11,7 +11,7 @@ import os
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 from django.urls import path
-from SIM7600.consumers import AlertConsumer
+import SIM7600.routing
 
 from django.core.asgi import get_asgi_application
 
@@ -19,7 +19,5 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'elevate.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": URLRouter([
-     path('alerts', AlertConsumer.as_asgi())
-])
+    "websocket": URLRouter(SIM7600.routing.websocket_urlpatterns)
 })

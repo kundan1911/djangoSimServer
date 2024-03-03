@@ -2,8 +2,11 @@
 
 import serial
 import time
+import json
 from django.core.management.base import BaseCommand
+import requests
 from SIM7600.coreCode import send_at_command, call_handling, send_sms
+
 
 class Command(BaseCommand):
     help = 'Run GSM service to monitor for incoming calls and handle SMS'
@@ -37,6 +40,10 @@ class Command(BaseCommand):
                     if 'OK' in response:
                         self.stdout.write(self.style.SUCCESS("Call hung up."))
                         # Wait for a moment before sending SMS (adjust as needed)
+                        data = {'type':"NewOwnerCall",'phone_number':caller_number}  # Example data to send
+                        url = 'http://localhost:8000/websocketTestingview/'  # URL of the Django server's view
+                        response = requests.post(url, data=data)
+                        print(response.json())
                         time.sleep(1)
                         # Send an SMS to the caller
                         send_sms(ser, caller_number, "Thank you for calling. I'll get back to you later.")

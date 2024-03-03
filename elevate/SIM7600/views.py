@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .coreCode import send_sms, call_handling
 import serial
 import json
-from .models import CarOwners
+from .models import CarOwners,ReceivedCall
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import time
@@ -33,7 +33,6 @@ def send_text_message(request):
         phone_number = data.get('phone_number')
         message = data.get('message')
         print(data)
-        websocketTestingview(request)
         # send_sms(ser, phone_number, message)
         print(phone_number, message)
         # return JsonResponse({'success': True})
@@ -84,6 +83,34 @@ def get_all_car_owners(request):
         return JsonResponse({'success': False, 'error': str(e)})
     
 
+
+@csrf_exempt
+def get_all_received_call(request):
+    try:
+        # Retrieve all received calls from the database
+        calls = ReceivedCall.objects.all()
+        # Create a list to store processed call data
+        processed_calls = []
+
+        # Iterate over each received call
+        for call in calls:
+            # Retrieve additional details from CarOwners based on the phone number
+            car_owner = CarOwners.objects.filter(phone_number=call.phone_number).first()
+
+            # Construct a dictionary with combined data from ReceivedCall and CarOwners
+            call_data = {
+                'phone_number': call.phone_number,
+                'timestamp': call.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # Format timestamp as string
+                'car_number': car_owner.car_number if car_owner else None,
+                'parking_slot_number': car_owner.parking_slot_number if car_owner else None
+            }
+            processed_calls.append(call_data)
+
+        # Return the processed call data as JSON
+        return JsonResponse({'success': True, 'data': processed_calls})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @csrf_exempt  # Add this decorator to exempt this view from CSRF protection
 def get_car_owner_detail(request):
@@ -144,22 +171,51 @@ def delete_owner_data(request):
     
 
 @csrf_exempt  # Add this decorator to exempt this view from CSRF protection
-def websocketTestingview(request):
+def handle_incoming_call(request):
     try:
         # Send WebSocket message to frontend
        # Get the channel layer
-        channel_layer = get_channel_layer()
+        data = json.loads(request.body.decode('utf-8'))
+        print(data)
+        phoneNo=data.get('phone_number')
+        # mssg=data.get('message')
+        if(phoneNo is None):
+            return JsonResponse({'success': False, 'error': 'phone number is null'})
+        
+        #check whether any already stored user does not have same phone NO
+        alreadyCallRegister=False
+        if ReceivedCall.objects.filter(phone_number=phoneNo).exists():
+            alreadyCallRegister=True
 
-        # Send the alert message to the WebSocket consumer
-        async_to_sync(channel_layer.group_send)(
-            "alert_group",  # Channel group name
+        channel_layer = get_channel_layer()
+        if(alreadyCallRegister):
+            async_to_sync(channel_layer.group_send)(
+            "alerts_group",  # Channel group name
             {
                 "type": "send_alert",  # Method name to call in consumer
-                "message": "Websocket testing successful"
+                "message": json.dumps({'type':"SameOwnerCall",'phone_number':phoneNo})  # Message to send to consumer
             }
-        )
-
-        return JsonResponse({'success': True, 'message': 'Websocket testing successful'})
+            )
+        else:
+            receiveCall = ReceivedCall(phone_number=phoneNo)
+            receiveCall.save()
+            car_owner = CarOwners.objects.filter(phone_number=phoneNo).first()
+            call_data = {
+                'phone_number': phoneNo,
+                'timestamp': car_owner.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # Format timestamp as string
+                'car_number': car_owner.car_number if car_owner else None,
+                'parking_slot_number': car_owner.parking_slot_number if car_owner else None
+            }
+             # Send the alert message to the WebSocket consumer
+            async_to_sync(channel_layer.group_send)(
+            "alerts_group",  # Channel group name
+            {
+                "type": "send_alert",  # Method name to call in consumer
+                "message": json.dumps({'type':"NewOwnerCall",'phone_number':call_data})  # Message to send to consumer
+            }
+            )
+        
+        return JsonResponse({'success': True, 'message': 'Call registered successfully'})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})

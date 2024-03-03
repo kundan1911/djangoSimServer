@@ -16,3 +16,8 @@ class CarOwners(models.Model):
             'parking_slot_number': self.parking_slot_number,
             'phone_number': self.phone_number,
         }
+
+class ReceivedCall(models.Model):
+    phone_number = models.CharField(max_length=20)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    

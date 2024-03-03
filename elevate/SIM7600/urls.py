@@ -11,5 +11,6 @@ urlpatterns = [
     path('get_car_owner_detail',views.get_car_owner_detail,name='get_car_owner_detail'),
     path('update_owner_data', views.update_owner_data, name='update_owner_data'),
     path('delete_owner_data', views.delete_owner_data, name='delete_owner_data'),
-    path('websocketTestingview', views.websocketTestingview, name='websocketTestingview'),
+    path('handle_incoming_call', views.handle_incoming_call, name='handle_incoming_call'),
+    path('get_all_received_call',views.get_all_received_call,name='get_all_received_call'),
 ]
