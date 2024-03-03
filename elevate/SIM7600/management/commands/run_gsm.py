@@ -41,7 +41,7 @@ class Command(BaseCommand):
                         self.stdout.write(self.style.SUCCESS("Call hung up."))
                         # Wait for a moment before sending SMS (adjust as needed)
                         data = {'type':"NewOwnerCall",'phone_number':caller_number}  # Example data to send
-                        url = 'http://localhost:8000/websocketTestingview/'  # URL of the Django server's view
+                        url = 'http://localhost:8000/handle_incoming_call/'  # URL of the Django server's view
                         response = requests.post(url, data=data)
                         print(response.json())
                         time.sleep(1)
