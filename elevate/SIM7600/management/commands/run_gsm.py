@@ -52,7 +52,18 @@ class Command(BaseCommand):
 
                         # Sleep for a short interval before checking again (adjust as needed)
                         time.sleep(2)
-
+                # sms_task = redis_client.brpop('sms_tasks', timeout=5)
+                # if sms_task:
+                #     _, task_data = sms_task
+                #     data = json.loads(task_data)
+                #     phone_number = data.get('phone_number')
+                #     message = data.get('message')
+                #     # Send SMS using GSM module
+                #     self.stdout.write(self.style.SUCCESS(f"Sending SMS to {phone_number}: {message}"))
+                    # Implement sending SMS using GSM module here
+                    # For example:
+                    # send_sms(ser, phone_number, message)
+                    time.sleep(1)  # Simulate sending SMS
         except serial.SerialException as e:
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
 
