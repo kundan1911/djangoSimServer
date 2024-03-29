@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .coreCode import send_sms, call_handling
 import serial
 import json
-from .models import CarOwners,ReceivedCall,RecentLog,AllLogs
+from .models import CarOwners,ReceivedCall,RecentLog,AllLogs,SMSTask
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from datetime import datetime
@@ -103,7 +103,7 @@ def get_all_received_call(request):
             # Construct a dictionary with combined data from ReceivedCall and CarOwners
             call_data = {
                 'phone_number': call.phone_number,
-                'timestamp': call.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # Format timestamp as string
+                'timestamp': call.formatted_timestamp,
                 'car_number': car_owner.car_number if car_owner else None,
                 'parking_slot_number': car_owner.parking_slot_number if car_owner else None
             }
@@ -336,9 +336,10 @@ def handle_incoming_call(request):
     try:
         # Send WebSocket message to frontend
        # Get the channel layer
-        data = json.loads(request.body.decode('utf-8'))
+        # data = json.loads(request.body.decode('utf-8'))
+        data = request.POST.get('phone_number')
         print(data)
-        phoneNo=data.get('phone_number')
+        phoneNo=data[3:]
         # mssg=data.get('message')
         if(phoneNo is None):
             return JsonResponse({'success': False, 'error': 'phone number is null'})
@@ -371,8 +372,8 @@ def handle_incoming_call(request):
             currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
             currCarOwnerName=car_owner.get('name') if car_owner else None
             # Create a new RecentLog instance and save it to the database
-            # recent_log = RecentLog(name=currCarOwnerName,slot_no=currParkingSlotNo,car_no=currCarOwnerNo)
-            # recent_log.save()
+            recent_log = RecentLog(name=currCarOwnerName,slot_no=currParkingSlotNo,car_no=currCarOwnerNo)
+            recent_log.save()
             all_log = AllLogs(name=currCarOwnerName,slot_no=currParkingSlotNo,car_no=currCarOwnerNo)
             all_log.save()
         else:
@@ -401,8 +402,8 @@ def handle_incoming_call(request):
             recent_log = RecentLog(currCarOwnerName,currParkingSlotNo,currCarOwnerNo)
             recent_log.save()
 
-            # all_log=AllLogs(currCarOwnerName, currParkingSlotNo, currCarOwnerNo)
-            # all_log.save()
+            all_log=AllLogs(currCarOwnerName, currParkingSlotNo, currCarOwnerNo)
+            all_log.save()
 
 
         
@@ -415,17 +416,12 @@ def handle_incoming_call(request):
 @csrf_exempt
 def send_car_ready_sms(request):
     try:
-        # serial_port = 'COM14'  # Adjust this according to your setup
-        # ser = serial.Serial(serial_port, baudrate=9600)
-        # Assuming phone_number and message are passed through request.POST or request.GET
         data = json.loads(request.body.decode('utf-8'))
         phone_number = data.get('phone_number')
         message = 'Your Car is out from the parking'
+        SMSTask.objects.create(phone_number=phone_number, message=message)
         call = ReceivedCall.objects.get(phone_number=phone_number)
         call.delete()
-        print(data)
-        # send_sms(ser, phone_number, message)
-        print(phone_number, message)
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})

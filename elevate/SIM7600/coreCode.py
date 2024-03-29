@@ -21,27 +21,29 @@ def call_handling(caller_number,ser):
 
 
 def send_sms(ser, phone_number, message):
+    # print(phone_number)
     #  Send SMS command
     time.sleep(1)
     response = send_at_command(ser, f'AT+CMGS="{phone_number}"')
     print(f"Sending SMS command: {response}")
 
+    time.sleep(1)
     # Check for the '>' prompt
-    if '>' in response:
+    # if '>' in response:
         # Send the SMS message
-        ser.write((message + chr(26)).encode())
-        time.sleep(2)
+    ser.write((message + chr(26)).encode())
+    time.sleep(2)
 
-        # Check for the response
-        response = ser.read_all().decode()
-        print(f"SMS sending response: {response}")
+    # Check for the response
+    response = ser.read_all().decode()
+    print(f"SMS sending response: {response}")
 
-        if 'OK' or '+CMGS:' in response:
-            print("SMS sent successfully.")
-        else:
-            print(f"Failed to send SMS. Response: {response}")
+    if 'OK' or '+CMGS:' in response:
+        print("SMS sent successfully.")
     else:
-        print(f"Failed to send SMS. '>' prompt not received. Response: {response}")
+        print(f"Failed to send SMS. Response: {response}")
+    # else:
+    #     print(f"Failed to send SMS. '>' prompt not received. Response: {response}")
 
 
 def main():
