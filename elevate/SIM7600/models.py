@@ -20,14 +20,23 @@ class CarOwners(models.Model):
 
 class ReceivedCall(models.Model):
     phone_number = models.CharField(max_length=20)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    @property
+    def formatted_timestamp(self):
+        # Convert datetime to the timezone you want
+        datetime_in_ist = timezone.localtime(self.timestamp)
+        # Format timestamp as string
+        return datetime_in_ist.strftime('%Y-%m-%d %H:%M:%S')
+
+    class Meta:
+        ordering = ['-timestamp']
+
 
 class SMSTask(models.Model):
     phone_number = models.CharField(max_length=20)
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
-
 
 
 class RecentLog(models.Model):
@@ -43,8 +52,13 @@ class RecentLog(models.Model):
 
     @property
     def formatted_time(self):
+        # Convert datetime to the timezone you want
+        datetime_in_ist = timezone.localtime(self.datetime)
         # Format time in terms of AM/PM
-        return self.datetime.strftime('%I:%M %p')
+        return datetime_in_ist.strftime('%I:%M %p')
+    
+    class Meta:
+        ordering = ['-datetime']  # Order by datetime field in descending order
 
 
 
@@ -64,3 +78,6 @@ class AllLogs(models.Model):
         datetime_in_ist = timezone.localtime(self.datetime)
         # Format time in terms of AM/PM
         return datetime_in_ist.strftime('%I:%M %p')
+    
+    class Meta:
+        ordering = ['-datetime']

@@ -14,68 +14,68 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # Replace 'COMx' with the correct serial port
         serial_port = 'COM19'
+        ser = None
 
-        try:
-            ser = serial.Serial(serial_port, baudrate=9600)
-            self.stdout.write(self.style.SUCCESS(f"Connected to {serial_port}"))
+        while True:
+            try:
+                if ser is None or not ser.is_open:
+                    ser = serial.Serial(serial_port, baudrate=9600)
+                    self.stdout.write(self.style.SUCCESS(f"Connected to {serial_port}"))
 
-            # Test communication
-            response = send_at_command(ser, 'AT')
-            self.stdout.write(self.style.SUCCESS(f"Testing communication: {response}"))
+                # Test communication
+                response = send_at_command(ser, 'AT')
+                self.stdout.write(self.style.SUCCESS(f"Testing communication: {response}"))
 
-            response = send_at_command(ser, 'AT+CLIP=1')
-            self.stdout.write(self.style.SUCCESS(f"Enabling Caller ID information: {response}"))
+                response = send_at_command(ser, 'AT+CLIP=1')
+                self.stdout.write(self.style.SUCCESS(f"Enabling Caller ID information: {response}"))
 
-            # Define function to monitor incoming calls
-            def monitor_calls():
-                while True:
-                    response = ser.readline().decode().strip()
-                    self.stdout.write(self.style.SUCCESS(f"Incoming call: {response}"))
-                    if '+CLIP' in response:
-                        self.stdout.write(self.style.SUCCESS("Incoming call detected."))
-                        caller_number = response.split(',')[0].split('"')[1]
-                        self.stdout.write(self.style.SUCCESS(f"Extracted phone number: {caller_number}"))
-                        response = send_at_command(ser, 'AT+CHUP')
-                        self.stdout.write(self.style.SUCCESS(f"Hanging up call: {response}"))
-                        if 'OK' in response:
-                            self.stdout.write(self.style.SUCCESS("Call hung up."))
-                            data = {'type': "NewOwnerCall", 'phone_number': caller_number}
-                            url = 'http://localhost:8000/handle_incoming_call'
-                            response = requests.post(url, data=data)
-                            print(response.json())
-                            time.sleep(1)
-                            send_sms(ser, caller_number, "Thank you for calling. I'll get back to you later.")
-                        else:
-                            self.stdout.write(self.style.ERROR(f"Failed to hang up the call. Response: {response}"))
-                            time.sleep(2)
+                # Start threads for monitoring calls and processing SMS tasks
+                call_thread = threading.Thread(target=self.monitor_calls, args=(ser,))
+                sms_thread = threading.Thread(target=self.process_sms_tasks, args=(ser,))
 
-            # Define function to process pending SMS tasks
-            # Function to check for pending SMS tasks
-            def process_sms_tasks():
-                while True:
-                    pending_tasks_count = SMSTask.objects.count()
-                    if pending_tasks_count == 1:
-                        task = SMSTask.objects.first()  # Get the first pending task
-                        send_sms(ser, task.phone_number, task.message)
-                        task.delete()
-                    # time.sleep(60)  # Check for pending tasks every 60 seconds
+                call_thread.start()
+                sms_thread.start()
 
-            # Start threads for monitoring calls and processing SMS tasks
-            call_thread = threading.Thread(target=monitor_calls)
-            sms_thread = threading.Thread(target=process_sms_tasks)
+                # Wait for threads to finish (which they won't, hence the use of while True loops)
+                call_thread.join()
+                sms_thread.join()
 
-            call_thread.start()
-            sms_thread.start()
+            except serial.SerialException as e:
+                self.stdout.write(self.style.ERROR(f"Error: {e}"))
+                time.sleep(1)  # Wait for a while before attempting reconnection
 
-            # Wait for threads to finish (which they won't, hence the use of `while True` loops)
-            while True:
-                time.sleep(1)
+    def monitor_calls(self, ser):
+        while True:
+            try:
+                response = ser.readline().decode().strip()
+                self.stdout.write(self.style.SUCCESS(f"Incoming call: {response}"))
+                if '+CLIP' in response:
+                    self.stdout.write(self.style.SUCCESS("Incoming call detected."))
+                    caller_number = response.split(',')[0].split('"')[1]
+                    self.stdout.write(self.style.SUCCESS(f"Extracted phone number: {caller_number}"))
+                    response = send_at_command(ser, 'AT+CHUP')
+                    self.stdout.write(self.style.SUCCESS(f"Hanging up call: {response}"))
+                    if 'OK' in response:
+                        self.stdout.write(self.style.SUCCESS("Call hung up."))
+                        data = {'type': "NewOwnerCall", 'phone_number': caller_number}
+                        url = 'http://localhost:8000/handle_incoming_call'
+                        response = requests.post(url, data=data)
+                        print(response.json())
+                        time.sleep(1)
+                        send_sms(ser, caller_number, "Your call has been registered. We will notify when your car is ready.")
+                    else:
+                        self.stdout.write(self.style.ERROR(f"Failed to hang up the call. Response: {response}"))
+                        time.sleep(2)
+            except serial.SerialException:
+                pass  # Handle serial communication errors
 
-        except serial.SerialException as e:
-            self.stdout.write(self.style.ERROR(f"Error: {e}"))
-
-        finally:
-            if ser.is_open:
-                ser.close()
-                self.stdout.write(self.style.SUCCESS("Serial port closed."))
-
+    def process_sms_tasks(self, ser):
+        while True:
+            try:
+                pending_tasks_count = SMSTask.objects.count()
+                if pending_tasks_count > 0:
+                    task = SMSTask.objects.first()  # Get the first pending task
+                    send_sms(ser, task.phone_number, task.message)
+                    task.delete()
+            except serial.SerialException:
+                pass  # Handle serial communication errors
