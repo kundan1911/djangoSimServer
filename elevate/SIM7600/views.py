@@ -213,65 +213,49 @@ def get_particular_logs(request):
         print(data)
         
         # Extract month and year from the request data
-        type=data.get('type')
+        type = data.get('type')
         
-        
-        if type==1:
+        # Print the name extracted from the request data
+        name = data.get('name', None)
+        if name:
+            print("Name:", name)
+
+        if type == 1:
             month = data.get('month')
             year = data.get('year')
-        # Filter the logs based on the provided month and year
+            # Filter the logs based on the provided month and year
             logs = AllLogs.objects.filter(
                 Q(datetime__month=month) & Q(datetime__year=year)
             ).order_by('-datetime')
             
-            # Serialize the logs data
-            serialized_logs = [{
-                'name': log.name,
-                'slot_no': log.slot_no,
-                'car_number': log.car_no,
-                'date': log.formatted_date,
-                'time': log.formatted_time
-            } for log in logs]
-            
-            return JsonResponse({'success': True, 'logs': serialized_logs})
-        elif type==2:
+        elif type == 2:
             date = data.get('date')
-
-# Format the datetime object into the desired string format
+            # Format the datetime object into the desired string format
             date_obj = datetime.strptime(date, '%Y-%m-%d').date()
 
             # Filter records based on the selected date
-            logs_for_selected_date = AllLogs.objects.filter(datetime__date=date_obj).order_by('-datetime')
-             # Serialize the logs data
-            serialized_logs = [{
-                'name': log.name,
-                'slot_no': log.slot_no,
-                'car_number': log.car_no,
-                'date': log.formatted_date,
-                'time': log.formatted_time
-            } for log in logs_for_selected_date]
-            return JsonResponse({'success': True, 'logs': serialized_logs})
+            logs = AllLogs.objects.filter(datetime__date=date_obj).order_by('-datetime')
 
         else:
-            print("else partt")
-            name=data.get('name')
-            # convert name into lowercase
-            name=name.lower()
-            print(name)
-            logs = AllLogs.objects.filter(name=name).order_by('-datetime')
-            
-            serialized_logs = [{
-                'name': log.name,
-                'slot_no': log.slot_no,
-                'car_number': log.car_no,
-                'date': log.formatted_date,
-                'time': log.formatted_time
-            } for log in logs]
-            return JsonResponse({'success': True, 'logs': serialized_logs})
+            print("else part")
+            name = data.get('name')
+            # Filter records based on partial or similar name
+            logs = AllLogs.objects.filter(name__icontains=name).order_by('-datetime')
 
+        # Serialize the logs data
+        serialized_logs = [{
+            'name': log.name,
+            'slot_no': log.slot_no,
+            'car_number': log.car_no,
+            'date': log.formatted_date,
+            'time': log.formatted_time
+        } for log in logs]
+
+        return JsonResponse({'success': True, 'logs': serialized_logs})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
 
 @csrf_exempt  # Add this decorator to exempt this view from CSRF protection
 def update_owner_data(request):
@@ -350,11 +334,11 @@ def handle_incoming_call(request):
         if ReceivedCall.objects.filter(phone_number=phoneNo).exists():
             alreadyCallRegister=True
 
+        owner = CarOwners.objects.get(phone_number=phoneNo)
+        car_owner = owner.to_dict() 
         channel_layer = get_channel_layer()
         if(alreadyCallRegister):
-            owner = CarOwners.objects.get(phone_number=phoneNo)
-            car_owner = owner.to_dict()  # Assuming this method returns a dictionary
-        
+            # Assuming this method returns a dictionary
             print(car_owner)
             call_data = {
                 'phone_number': phoneNo,
@@ -369,26 +353,18 @@ def handle_incoming_call(request):
                 "message": json.dumps({'type':"SameOwnerCall",'phone_number':call_data})  # Message to send to consumer
             }
             )
-            currCarOwnerNo=car_owner.get('car_number') if car_owner else None
-            currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
-            currCarOwnerName=car_owner.get('name') if car_owner else None
-            # Create a new RecentLog instance and save it to the database
-            recent_log = RecentLog(name=currCarOwnerName,slot_no=currParkingSlotNo,car_no=currCarOwnerNo)
-            recent_log.save()
-            all_log = AllLogs(name=currCarOwnerName,slot_no=currParkingSlotNo,car_no=currCarOwnerNo)
-            all_log.save()
         else:
             receiveCall = ReceivedCall(phone_number=phoneNo)
             receiveCall.save()
-            car_owner = CarOwners.objects.filter(phone_number=phoneNo).first()
             currCarOwnerNo=car_owner.get('car_number') if car_owner else None
             currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
             call_data = {
                 'phone_number': phoneNo,
-                # 'timestamp': car_owner.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # Format timestamp as string
-               'car_number': currCarOwnerNo,
+                'timestamp': receiveCall.formatted_timestamp,
+                'car_number': currCarOwnerNo,
                 'parking_slot_number': currParkingSlotNo
             }
+            print(call_data)
              # Send the alert message to the WebSocket consumer
             async_to_sync(channel_layer.group_send)(
             "alerts_group",  # Channel group name
@@ -396,18 +372,7 @@ def handle_incoming_call(request):
                 "type": "send_alert",  # Method name to call in consumer
                 "message": json.dumps({'type':"NewOwnerCall",'phone_number':call_data})  # Message to send to consumer
             }
-            )
-            # Save the call data into RecentLog model
-            currCarOwnerName=car_owner.get('name') if car_owner else None
-            # Create a new RecentLog instance and save it to the database
-            recent_log = RecentLog(currCarOwnerName,currParkingSlotNo,currCarOwnerNo)
-            recent_log.save()
-
-            all_log=AllLogs(currCarOwnerName, currParkingSlotNo, currCarOwnerNo)
-            all_log.save()
-
-
-        
+            )        
         return JsonResponse({'success': True, 'message': 'Call registered successfully'})
 
     except Exception as e:
@@ -422,7 +387,24 @@ def send_car_ready_sms(request):
         message = 'Your Car is out from the parking'
         SMSTask.objects.create(phone_number=phone_number, message=message)
         call = ReceivedCall.objects.get(phone_number=phone_number)
+        print(phone_number)
         call.delete()
+        owner = CarOwners.objects.get(phone_number=phone_number)
+        print(owner)
+        car_owner = owner.to_dict()
+        currCarOwnerNo=car_owner.get('car_number') if car_owner else None
+        currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
+        # Save the call data into RecentLog model
+        currCarOwnerName=car_owner.get('name') if car_owner else None
+        # Create a new RecentLog instance and save it to the database
+        recent_log = RecentLog(name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
+        recent_log.save()
+        print(recent_log)
+        all_log = AllLogs(name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
+        all_log.save()
+        print(all_log)
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+    
+
