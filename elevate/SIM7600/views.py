@@ -316,69 +316,73 @@ def undo_recent_log(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@csrf_exempt  # Add this decorator to exempt this view from CSRF protection
+@csrf_exempt
 def handle_incoming_call(request):
     try:
-        # Send WebSocket message to frontend
-       # Get the channel layer
-        # data = json.loads(request.body.decode('utf-8'))
         data = request.POST.get('phone_number')
         print(data)
-        phoneNo=data[3:]
-        # mssg=data.get('message')
-        if(phoneNo is None):
+        phoneNo = data[3:]
+        
+        if phoneNo is None:
             return JsonResponse({'success': False, 'error': 'phone number is null'})
         
-        #check whether any already stored user does not have same phone NO
-        alreadyCallRegister=False
-        if ReceivedCall.objects.filter(phone_number=phoneNo).exists():
-            alreadyCallRegister=True
-
-        owner = CarOwners.objects.get(phone_number=phoneNo)
-        car_owner = owner.to_dict() 
+        # Check whether the caller is a registered user
+        is_registered_user = CarOwners.objects.filter(phone_number=phoneNo).exists()
+        
+        # Initialize callType
+        callType = None
+        callerName=None
+        # Check whether the caller has called before
+        has_called_before = ReceivedCall.objects.filter(phone_number=phoneNo).exists()
+        
+        # Get the channel layer
         channel_layer = get_channel_layer()
-        if(alreadyCallRegister):
-            # Assuming this method returns a dictionary
+
+        if is_registered_user:
+            # If the caller is a registered user, get their details
+            owner = CarOwners.objects.get(phone_number=phoneNo)
+            car_owner = owner.to_dict()
             print(car_owner)
+            # call_type = "SameOwnerCall" if has_called_before else "NewOwnerCall"
+            callType = 2 if has_called_before else 1
+            callerName=car_owner.get('name')
             call_data = {
                 'phone_number': phoneNo,
-                # 'timestamp': car_owner.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # Format timestamp as string
                 'car_number': car_owner.get('car_number') if car_owner else None,
-                'parking_slot_number': car_owner.get('parking_slot_number')  if car_owner else None
+                'parking_slot_number': car_owner.get('parking_slot_number')  if car_owner else None,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
-            async_to_sync(channel_layer.group_send)(
-            "alerts_group",  # Channel group name
-            {
-                "type": "send_alert",  # Method name to call in consumer
-                "message": json.dumps({'type':"SameOwnerCall",'phone_number':call_data})  # Message to send to consumer
-            }
-            )
+
+            # If it's a new call from a registered user, save it in ReceivedCall model
+            if not has_called_before:
+                receiveCall = ReceivedCall(phone_number=phoneNo)
+                receiveCall.save()
         else:
-            receiveCall = ReceivedCall(phone_number=phoneNo)
-            receiveCall.save()
-            currCarOwnerNo=car_owner.get('car_number') if car_owner else None
-            currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
+            # If the caller is not a registered user, handle accordingly
+            callType=3
+            # call_type = "UnknownUserCall"
             call_data = {
                 'phone_number': phoneNo,
-                'timestamp': receiveCall.formatted_timestamp,
-                'car_number': currCarOwnerNo,
-                'parking_slot_number': currParkingSlotNo
+                'car_number': None,
+                'parking_slot_number': None,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
-            print(call_data)
-             # Send the alert message to the WebSocket consumer
-            async_to_sync(channel_layer.group_send)(
+
+        # Send the alert message to the WebSocket consumer
+        async_to_sync(channel_layer.group_send)(
             "alerts_group",  # Channel group name
             {
                 "type": "send_alert",  # Method name to call in consumer
-                "message": json.dumps({'type':"NewOwnerCall",'phone_number':call_data})  # Message to send to consumer
+                "message": json.dumps({'type': callType, 'phone_number': call_data})  # Message to send to consumer
             }
-            )        
-        return JsonResponse({'success': True, 'message': 'Call registered successfully'})
+        )
+
+        # Return JSON response with success message and call_type
+        return JsonResponse({'success': True, 'message': 'Call registered successfully', 'call_Data': {'call_type' : callType,'name':callerName}})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-
 @csrf_exempt
 def send_car_ready_sms(request):
     try:

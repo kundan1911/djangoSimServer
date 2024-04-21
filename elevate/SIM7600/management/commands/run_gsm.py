@@ -53,6 +53,7 @@ class Command(BaseCommand):
                     if ser.is_open:
                         ser.close()
                         print("Serial port closed.")
+                        time.sleep(1)
                         Command.handle(self)
                 if '+CLIP' in response:
                     self.stdout.write(self.style.SUCCESS("Incoming call detected."))
@@ -66,11 +67,22 @@ class Command(BaseCommand):
                         url = 'http://localhost:8000/handle_incoming_call'
                         response = requests.post(url, data=data)
                         print(response.json())
+                        response_data = response.json()
+                        call_data = response_data.get('call_Data', {})  # Use get() with a default value to handle missing key
+                        call_type = call_data.get('call_type')  # Use get() with a default value to handle missing key
+                        name = call_data.get('name')  # Use get() with a default value to handle missing key
+                        if call_type == 1:
+                            send_sms(ser, caller_number, "Hey {}, Your call has been registered. We will notify when your car is ready.".format(name))
+                        elif call_type == 2:
+                            send_sms(ser, caller_number, "Hey {}, Your call was already registered. You will be notified when the car is ready".format(name))
+                        else:
+                            send_sms(ser, caller_number, "You are not a registered user. Please contact the valet")
                         time.sleep(1)
-                        send_sms(ser, caller_number, "Your call has been registered. We will notify when your car is ready.")
+                        
                     else:
                         self.stdout.write(self.style.ERROR(f"Failed to hang up the call. Response: {response}"))
                         time.sleep(2)
+                time.sleep(0.5)
             except serial.SerialException:
                 pass  # Handle serial communication errors
 
