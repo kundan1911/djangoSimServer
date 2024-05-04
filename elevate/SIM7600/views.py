@@ -90,31 +90,35 @@ def get_all_car_owners(request):
 def get_all_received_call(request):
     try:
         # Retrieve all received calls from the database
-        calls = ReceivedCall.objects.all().order_by('-timestamp')
-        
+        calls = ReceivedCall.objects.all()
         
         # Create a list to store processed call data
         processed_calls = []
 
         # Iterate over each received call
+       
         for call in calls:
-            # Retrieve additional details from CarOwners based on the phone number
-            car_owner = CarOwners.objects.filter(phone_number=call.phone_number).first()
+           
+            # Retrieve additional details from CarOwners based on the associated user
+            car_owner = call.user
 
             # Construct a dictionary with combined data from ReceivedCall and CarOwners
             call_data = {
-                'phone_number': call.phone_number,
+                'id': car_owner.id,
+                'phone_number': car_owner.phone_number,
                 'timestamp': call.formatted_timestamp,
                 'car_number': car_owner.car_number if car_owner else None,
                 'parking_slot_number': car_owner.parking_slot_number if car_owner else None
             }
             processed_calls.append(call_data)
-
+        print("innnn")
         # Return the processed call data as JSON
         return JsonResponse({'success': True, 'data': processed_calls})
 
     except Exception as e:
+        print(e)
         return JsonResponse({'success': False, 'error': str(e)})
+
     
 
 @csrf_exempt
@@ -128,13 +132,14 @@ def get_all_recent_log(request):
 
         # Iterate over each received call
         for log in logs:
-            print("in lp")
-            print(f"Name: {log.name}")
-            print(f"Slot No: {log.slot_no}")
-            print(f"Car Number: {log.car_no}")
-            print(f"Formatted Time: {log.formatted_time}")
+            # print("in lp")
+            # print(f"Name: {log.name}")
+            # print(f"Slot No: {log.slot_no}")
+            # print(f"Car Number: {log.car_no}")
+            # print(f"Formatted Time: {log.formatted_time}")
             # Construct a dictionary with combined data from ReceivedCall and CarOwners
             log_data = {
+                'id':log.id,
                 'name':log.name,
                 'slot_no': log.slot_no,
                 'car_number': log.car_no ,
@@ -277,6 +282,7 @@ def update_owner_data(request):
         return JsonResponse({'success': False, 'error': str(e)})
     
 
+    
 
 @csrf_exempt  # Add this decorator to exempt this view from CSRF protection
 def delete_owner_data(request):
@@ -298,6 +304,8 @@ def undo_recent_log(request):
     log_name = data.get('name')
     slot_no = data.get('slot_no')
     print(data)
+
+    has_called_before = ReceivedCall.objects.filter(slot_no=phoneNo).exists()
     try:
         # Query RecentLog based on name and formatted_time
         recent_logs = RecentLog.objects.filter(name=log_name, slot_no=slot_no)
@@ -327,45 +335,42 @@ def handle_incoming_call(request):
             return JsonResponse({'success': False, 'error': 'phone number is null'})
         
         # Check whether the caller is a registered user
-        is_registered_user = CarOwners.objects.filter(phone_number=phoneNo).exists()
-        
-        # Initialize callType
+        try:
+            registered_user = CarOwners.objects.get(phone_number=phoneNo)
+        except CarOwners.DoesNotExist:
+            registered_user = None
+
+        # Initialize callType and callerName
         callType = None
-        callerName=None
-        # Check whether the caller has called before
-        has_called_before = ReceivedCall.objects.filter(phone_number=phoneNo).exists()
-        
+        callerName = None
+        print(registered_user.to_dict())
         # Get the channel layer
         channel_layer = get_channel_layer()
 
-        if is_registered_user:
-            # If the caller is a registered user, get their details
-            owner = CarOwners.objects.get(phone_number=phoneNo)
-            car_owner = owner.to_dict()
-            print(car_owner)
-            # call_type = "SameOwnerCall" if has_called_before else "NewOwnerCall"
-            callType = 2 if has_called_before else 1
-            callerName=car_owner.get('name')
+        if registered_user is not None:
+        # If the caller is a registered user, get their details
+            print("new call from registered user")
+            callType = 2 if ReceivedCall.objects.filter(user=registered_user).exists() else 1
+            callerName = registered_user.name
+            
             call_data = {
-                'phone_number': phoneNo,
-                'car_number': car_owner.get('car_number') if car_owner else None,
-                'parking_slot_number': car_owner.get('parking_slot_number')  if car_owner else None,
+                'phone_number': registered_user.phone_number,
+                'user_id': registered_user.id,
+                'car_number': registered_user.car_number,
+                'parking_slot_number': registered_user.parking_slot_number,
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
             # If it's a new call from a registered user, save it in ReceivedCall model
-            if not has_called_before:
-                receiveCall = ReceivedCall(phone_number=phoneNo)
-                receiveCall.save()
+            if callType == 1:
+                
+                received_call = ReceivedCall(user=registered_user)
+                received_call.save()
         else:
             # If the caller is not a registered user, handle accordingly
-            callType=3
-            # call_type = "UnknownUserCall"
+            callType = 3
             call_data = {
-                'phone_number': phoneNo,
-                'car_number': None,
-                'parking_slot_number': None,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'phone_number': phoneNo
             }
 
         # Send the alert message to the WebSocket consumer
@@ -377,34 +382,40 @@ def handle_incoming_call(request):
             }
         )
 
-        # Return JSON response with success message and call_type
-        return JsonResponse({'success': True, 'message': 'Call registered successfully', 'call_Data': {'call_type' : callType,'name':callerName}})
+        # Return JSON response with success message, call_type, and call_data
+        return JsonResponse({'success': True, 'message': 'Call registered successfully', 'call_data': {'call_type': callType, 'name': callerName, 'user_id': call_data.get('user_id')}})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
-    
+
 @csrf_exempt
 def send_car_ready_sms(request):
     try:
         data = json.loads(request.body.decode('utf-8'))
-        phone_number = data.get('phone_number')
+        print(data)
+        carOwnerId = data.get('car_owner_id')
         message = 'Your Car is out from the parking'
+        # SMSTask.objects.create(phone_number=phone_number, message=message)
+        
+        carowner = CarOwners.objects.filter(id=carOwnerId).first()
+        car_owner = carowner.to_dict()
+        phone_number = car_owner.get('phone_number')
         SMSTask.objects.create(phone_number=phone_number, message=message)
-        call = ReceivedCall.objects.get(phone_number=phone_number)
-        print(phone_number)
+        print(carowner)
+        call = ReceivedCall.objects.get(user=carowner)
         call.delete()
-        owner = CarOwners.objects.get(phone_number=phone_number)
-        print(owner)
-        car_owner = owner.to_dict()
+        # owner = CarOwners.objects.get(phone_number=phone_number)
+        # print(owner)
+        
         currCarOwnerNo=car_owner.get('car_number') if car_owner else None
         currParkingSlotNo=car_owner.get('parking_slot_number') if car_owner else None
         # Save the call data into RecentLog model
         currCarOwnerName=car_owner.get('name') if car_owner else None
         # Create a new RecentLog instance and save it to the database
-        recent_log = RecentLog(name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
+        recent_log = RecentLog(ownerId=carOwnerId,name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
         recent_log.save()
         print(recent_log)
-        all_log = AllLogs(name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
+        all_log = AllLogs(ownerId=carOwnerId,name=currCarOwnerName, slot_no=currParkingSlotNo, car_no=currCarOwnerNo)
         all_log.save()
         print(all_log)
         return JsonResponse({'success': True})
@@ -412,3 +423,12 @@ def send_car_ready_sms(request):
         return JsonResponse({'success': False, 'error': str(e)})
     
 
+@csrf_exempt  # Add this decorator to exempt this view from CSRF protection
+def off_buzzer(request):
+    try:
+        message = 'off'
+        SMSTask.objects.create(message=message)
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

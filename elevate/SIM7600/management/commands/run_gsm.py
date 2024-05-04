@@ -6,10 +6,33 @@ import requests
 from django.core.management.base import BaseCommand
 from SIM7600.coreCode import send_sms, send_at_command
 from SIM7600.models import SMSTask
+# from SIM7600.management.commands.buzzer import start_Buzzer, stop_Buzzer
+
+# buzzer_control.py
+
+from pyfirmata import Arduino, util
+import time
 
 
 class Command(BaseCommand):
     help = 'Run GSM service to monitor for incoming calls and handle SMS'
+    board = Arduino('COM26')  # Replace 'COM3' with the port your Arduino is connected to
+
+    # Start an iterator thread so serial buffer doesn't overflow
+    it = util.Iterator(board)
+    it.start()
+
+    # Define the pin for the Buzzer (pin 13 on Arduino Uno)
+    global Buzzer_pin
+    Buzzer_pin = board.get_pin('d:12:o')  # 'd' stands for digital, 'o' for output
+
+    def start_Buzzer():
+        Buzzer_pin.write(1)
+        print("Buzzer ON")
+
+    def stop_Buzzer():
+        Buzzer_pin.write(0)
+        print("Buzzer OFF")
 
     def handle(self, *args, **options):
         # Replace 'COMx' with the correct serial port
@@ -72,6 +95,7 @@ class Command(BaseCommand):
                         call_type = call_data.get('call_type')  # Use get() with a default value to handle missing key
                         name = call_data.get('name')  # Use get() with a default value to handle missing key
                         if call_type == 1:
+                            Command.start_Buzzer()
                             send_sms(ser, caller_number, "Hey {}, Your call has been registered. We will notify when your car is ready.".format(name))
                         elif call_type == 2:
                             send_sms(ser, caller_number, "Hey {}, Your call was already registered. You will be notified when the car is ready".format(name))
@@ -92,7 +116,10 @@ class Command(BaseCommand):
                 pending_tasks_count = SMSTask.objects.count()
                 if pending_tasks_count > 0:
                     task = SMSTask.objects.first()  # Get the first pending task
-                    send_sms(ser, task.phone_number, task.message)
+                    if(task.message=="off"):
+                        Command.stop_Buzzer()
+                    else:
+                        send_sms(ser, task.phone_number, task.message)
                     task.delete()
             except serial.SerialException:
                 pass  # Handle serial communication errors

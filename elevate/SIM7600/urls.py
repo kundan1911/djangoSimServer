@@ -16,6 +16,7 @@ urlpatterns = [
     path('send_car_ready_sms',views.send_car_ready_sms,name='send_car_ready_sms'),
     path('get_all_recent_log',views.get_all_recent_log,name='get_all_recent_log'),
     path('get_all_log',views.get_all_log,name='get_all_log'),
+    path('off_buzzer',views.off_buzzer,name='off_buzzer'),
     path('get_particular_logs',views.get_particular_logs,name='get_particular_logs'),
     path('undo_recent_log', views.undo_recent_log, name='undo_recent_log'),
 

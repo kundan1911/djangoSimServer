@@ -1,4 +1,4 @@
-# models.py
+#models.py 
 
 from django.db import models
 from django.utils import timezone
@@ -19,7 +19,7 @@ class CarOwners(models.Model):
         }
 
 class ReceivedCall(models.Model):
-    phone_number = models.CharField(max_length=20)
+    user = models.ForeignKey(CarOwners, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(default=timezone.now)
 
     @property
@@ -29,17 +29,9 @@ class ReceivedCall(models.Model):
         # Format timestamp as string
         return datetime_in_ist.strftime('%Y-%m-%d %H:%M:%S')
 
-    class Meta:
-        ordering = ['-timestamp']
-
-
-class SMSTask(models.Model):
-    phone_number = models.CharField(max_length=20)
-    message = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
 
 class RecentLog(models.Model):
+    ownerId = models.IntegerField()
     name = models.CharField(max_length=100)
     slot_no = models.CharField(max_length=10)
     car_no = models.CharField(max_length=20)
@@ -56,17 +48,17 @@ class RecentLog(models.Model):
         datetime_in_ist = timezone.localtime(self.datetime)
         # Format time in terms of AM/PM
         return datetime_in_ist.strftime('%I:%M %p')
-    
+
     class Meta:
-        ordering = ['-datetime']  # Order by datetime field in descending order
-
-
+        ordering = ['-datetime']
 
 class AllLogs(models.Model):
+    ownerId = models.IntegerField()
     name = models.CharField(max_length=100)
     slot_no = models.CharField(max_length=100)
     car_no = models.CharField(max_length=100)
     datetime = models.DateTimeField(default=timezone.now)
+
     @property
     def formatted_date(self):
         # Format date as DD-MM-YYYY
@@ -78,6 +70,12 @@ class AllLogs(models.Model):
         datetime_in_ist = timezone.localtime(self.datetime)
         # Format time in terms of AM/PM
         return datetime_in_ist.strftime('%I:%M %p')
-    
+
     class Meta:
         ordering = ['-datetime']
+
+
+class SMSTask(models.Model):
+    phone_number = models.CharField(max_length=20)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
