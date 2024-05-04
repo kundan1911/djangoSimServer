@@ -127,19 +127,12 @@ def get_all_recent_log(request):
         # Retrieve all received calls from the database
         logs = RecentLog.objects.all().order_by('-datetime')
         # Create a list to store processed call data
-        # print(calls)
         recent_data = []
 
         # Iterate over each received call
         for log in logs:
-            # print("in lp")
-            # print(f"Name: {log.name}")
-            # print(f"Slot No: {log.slot_no}")
-            # print(f"Car Number: {log.car_no}")
-            # print(f"Formatted Time: {log.formatted_time}")
-            # Construct a dictionary with combined data from ReceivedCall and CarOwners
             log_data = {
-                'id':log.id,
+                'id':log.ownerId,
                 'name':log.name,
                 'slot_no': log.slot_no,
                 'car_number': log.car_no ,
@@ -297,33 +290,43 @@ def delete_owner_data(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@csrf_exempt  # Add this decorator to exempt this view from CSRF protection
+@csrf_exempt
 def undo_recent_log(request):
-    # Parse request data
-    data = json.loads(request.body.decode('utf-8'))
-    log_name = data.get('name')
-    slot_no = data.get('slot_no')
-    print(data)
-
-    has_called_before = ReceivedCall.objects.filter(slot_no=phoneNo).exists()
     try:
-        # Query RecentLog based on name and formatted_time
-        recent_logs = RecentLog.objects.filter(name=log_name, slot_no=slot_no)
+        # Parse request data
+        data = json.loads(request.body.decode('utf-8'))
+        id = data.get('id')
+        time = data.get('time')
         
-        if recent_logs.exists():
-            # Delete the first matching entry
-            recent_logs.first().delete()
-            owner = CarOwners.objects.get(name=log_name)
-            car_owner = owner.to_dict()
+        # Convert time string to datetime object
+        # time = datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        
+        
+        print(time)
+        # Check if there's already an entry in ReceivedCall for the corresponding user
+        if not ReceivedCall.objects.filter(user=id).exists():
+            # Retrieve the CarOwner object
+            
+            car_owner = CarOwners.objects.get(id=id)
             print(car_owner)
-            receiveCall = ReceivedCall(phone_number=car_owner.get('phone_number'))
-            receiveCall.save()
-            return JsonResponse({'success': True, 'message': 'Log undone successfully'})
+            # Create a new entry in ReceivedCall
+            ReceivedCall.objects.create(user=car_owner)
         else:
-            return JsonResponse({'success': False, 'error': 'No matching log found'})
+            return JsonResponse({'success': False, 'message': 'Call already in the queue'})
+ 
+        # Retrieve RecentLog entry to be undone
+        recent_log = RecentLog.objects.get(ownerId=id, datetime=time)
+        
+        # Delete the RecentLog entry
+        recent_log.delete()
+        
+        return JsonResponse({'success': True, 'message': 'Log undone successfully'})
+    except RecentLog.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'No matching log found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
+
 @csrf_exempt
 def handle_incoming_call(request):
     try:

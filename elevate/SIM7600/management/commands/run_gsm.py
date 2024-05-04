@@ -27,7 +27,7 @@ class Command(BaseCommand):
     Buzzer_pin = board.get_pin('d:12:o')  # 'd' stands for digital, 'o' for output
 
     def start_Buzzer():
-        Buzzer_pin.write(1)
+        # Buzzer_pin.write(1)
         print("Buzzer ON")
 
     def stop_Buzzer():
@@ -91,7 +91,7 @@ class Command(BaseCommand):
                         response = requests.post(url, data=data)
                         print(response.json())
                         response_data = response.json()
-                        call_data = response_data.get('call_Data', {})  # Use get() with a default value to handle missing key
+                        call_data = response_data.get('call_data', {})  # Use get() with a default value to handle missing key
                         call_type = call_data.get('call_type')  # Use get() with a default value to handle missing key
                         name = call_data.get('name')  # Use get() with a default value to handle missing key
                         if call_type == 1:
