@@ -27,7 +27,7 @@ class Command(BaseCommand):
     Buzzer_pin = board.get_pin('d:12:o')  # 'd' stands for digital, 'o' for output
 
     def start_Buzzer():
-        # Buzzer_pin.write(1)
+        Buzzer_pin.write(1)
         print("Buzzer ON")
 
     def stop_Buzzer():

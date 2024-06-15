@@ -62,6 +62,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://192.168.0.200',  # Allows all devices in the 192.168.1.x range
 ]
 
 ROOT_URLCONF = 'elevate.urls'

@@ -435,3 +435,11 @@ def off_buzzer(request):
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+    
+@csrf_exempt  # Add this decorator to exempt this view from CSRF protection
+def check_server(request):
+    try:
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
