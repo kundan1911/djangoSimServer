@@ -87,7 +87,7 @@ class Command(BaseCommand):
                     if 'OK' in response:
                         self.stdout.write(self.style.SUCCESS("Call hung up."))
                         data = {'type': "NewOwnerCall", 'phone_number': caller_number}
-                        url = 'http://localhost:8000/handle_incoming_call'
+                        url = 'http://192.168.0.176:8000/handle_incoming_call'
                         response = requests.post(url, data=data)
                         print(response.json())
                         response_data = response.json()
@@ -95,12 +95,15 @@ class Command(BaseCommand):
                         call_type = call_data.get('call_type')  # Use get() with a default value to handle missing key
                         name = call_data.get('name')  # Use get() with a default value to handle missing key
                         if call_type == 1:
-                            Command.start_Buzzer()
-                            send_sms(ser, caller_number, "Hey {}, Your call has been registered. We will notify when your car is ready.".format(name))
+                            # Command.start_Buzzer()
+                            print('Hey, Your call has been registered. We will notify when your car is ready.')
+                            # send_sms(ser, caller_number, "Hey {}, Your call has been registered. We will notify when your car is ready.".format(name))
                         elif call_type == 2:
-                            send_sms(ser, caller_number, "Hey {}, Your call was already registered. You will be notified when the car is ready".format(name))
+                            print('Hey, Your call was already registered. You will be notified when the car is ready')
+                            # send_sms(ser, caller_number, "Hey {}, Your call was already registered. You will be notified when the car is ready".format(name))
                         else:
-                            send_sms(ser, caller_number, "You are not a registered user. Please contact the valet")
+                            print('You are not a registered user. Please contact the valet')
+                            # send_sms(ser, caller_number, "You are not a registered user. Please contact the valet")
                         time.sleep(1)
                         
                     else:
@@ -119,7 +122,8 @@ class Command(BaseCommand):
                     if(task.message=="off"):
                         Command.stop_Buzzer()
                     else:
-                        send_sms(ser, task.phone_number, task.message)
+                        print('you car is out from the parking')
+                        # send_sms(ser, task.phone_number, task.message)
                     task.delete()
             except serial.SerialException:
                 pass  # Handle serial communication errors

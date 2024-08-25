@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-o4x4aw-yso-vbr3fuz14m$_+(gg#*-1-neush@m3eb6w+09%v5
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["192.168.0.176"]
 
 
 # Application definition
@@ -60,9 +60,26 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', 
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://192.168.0.200',  # Allows all devices in the 192.168.1.x range
+# CORS_ALLOWED_ORIGINS = [
+#     "*",  # Allow all origins starting with 192.168.0. (adjust as needed)
+# ]
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
 ]
 
 ROOT_URLCONF = 'elevate.urls'

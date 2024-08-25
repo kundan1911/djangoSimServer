@@ -124,28 +124,28 @@ def get_all_received_call(request):
 @csrf_exempt
 def get_all_recent_log(request):
     try:
-        # Retrieve all received calls from the database
-        logs = RecentLog.objects.all().order_by('-datetime')
-        # Create a list to store processed call data
+        # Retrieve the top 20 most recent logs from the database
+        logs = RecentLog.objects.all().order_by('-datetime')[:20]
+        # Create a list to store processed log data
         recent_data = []
 
-        # Iterate over each received call
+        # Iterate over each retrieved log
         for log in logs:
             log_data = {
-                'id':log.ownerId,
-                'name':log.name,
+                'id': log.ownerId,
+                'name': log.name,
                 'slot_no': log.slot_no,
-                'car_number': log.car_no ,
-                'time': log.formatted_time  #
+                'car_number': log.car_no,
+                'time': log.formatted_time
             }
-            print(log_data)
             recent_data.append(log_data)
-        print(recent_data)
-        # Return the processed call data as JSON
+
+        # Return the processed log data as JSON
         return JsonResponse({'success': True, 'data': recent_data})
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
 
 
 @csrf_exempt
